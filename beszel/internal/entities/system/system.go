@@ -20,6 +20,8 @@ type Stats struct {
 	DiskPct         float64             `json:"dp"`
 	DiskReadPs      float64             `json:"dr"`
 	DiskWritePs     float64             `json:"dw"`
+	PeakDiskReadPs  float64             `json:"pdr,omitempty"`
+	PeakDiskWritePs float64             `json:"pdw,omitempty"`
 	NetworkSent     float64             `json:"ns"`
 	PeakNetworkSent float64             `json:"pns,omitempty"`
 	NetworkRecv     float64             `json:"nr"`

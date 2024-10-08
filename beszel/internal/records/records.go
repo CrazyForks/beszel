@@ -155,6 +155,8 @@ func (rm *RecordManager) AverageSystemStats(records []*models.Record) system.Sta
 	peakCpu := float64(0)
 	peakNs := float64(0)
 	peakNr := float64(0)
+	peakDiskReadPs := float64(0)
+	peakDiskWritePs := float64(0)
 
 	var stats system.Stats
 	for _, record := range records {
@@ -178,6 +180,8 @@ func (rm *RecordManager) AverageSystemStats(records []*models.Record) system.Sta
 		peakCpu = max(peakCpu, stats.PeakCpu, stats.Cpu)
 		peakNs = max(peakNs, stats.PeakNetworkSent, stats.NetworkSent)
 		peakNr = max(peakNr, stats.PeakNetworkRecv, stats.NetworkRecv)
+		peakDiskReadPs = max(peakDiskReadPs, stats.PeakDiskReadPs, stats.DiskReadPs)
+		peakDiskWritePs = max(peakDiskWritePs, stats.PeakDiskWritePs, stats.DiskWritePs)
 		// add temps to sum
 		if stats.Temperatures != nil {
 			tempCount++

@@ -8,11 +8,13 @@ import {
 	formatShortDate,
 	toFixedWithoutTrailingZeros,
 	twoDecimalString,
+	chartMargin,
 } from '@/lib/utils'
 // import Spinner from '../spinner'
 import { useStore } from '@nanostores/react'
-import { $chartTime } from '@/lib/stores'
+import { $bandwidthMax, $chartTime } from '@/lib/stores'
 import { SystemStatsRecord } from '@/types'
+import { useMemo } from 'react'
 
 export default function BandwidthChart({
 	ticks,
@@ -23,26 +25,36 @@ export default function BandwidthChart({
 }) {
 	const chartTime = useStore($chartTime)
 	const { yAxisWidth, updateYAxisWidth } = useYAxisWidth()
+	const showMax = useStore($bandwidthMax)
+
+	const dataKeys = useMemo(() => {
+		const p = showMax && chartTime !== '1h' ? 'p' : ''
+		return [`stats.${p}ns`, `stats.${p}nr`]
+	}, [showMax, systemData])
+
+	// make sure pns and pnr exist
+	const data = useMemo(() => {
+		if (chartTime !== '1h') {
+			for (let d of systemData) {
+				if (!d.stats) {
+					continue
+				}
+				d.stats.pnr ||= 0
+				d.stats.pns ||= 0
+			}
+		}
+		return systemData
+	}, [systemData])
 
 	return (
 		<div>
 			{/* {!yAxisSet && <Spinner />} */}
 			<ChartContainer
-				config={{}}
 				className={cn('h-full w-full absolute aspect-auto bg-card opacity-0 transition-opacity', {
 					'opacity-100': yAxisWidth,
 				})}
 			>
-				<AreaChart
-					accessibilityLayer
-					data={systemData}
-					margin={{
-						left: 0,
-						right: 0,
-						top: 10,
-						bottom: 0,
-					}}
-				>
+				<AreaChart accessibilityLayer data={data} margin={chartMargin}>
 					<CartesianGrid vertical={false} />
 					<YAxis
 						className="tracking-tighter"
@@ -79,23 +91,21 @@ export default function BandwidthChart({
 						}
 					/>
 					<Area
-						dataKey="stats.ns"
+						dataKey={dataKeys[0]}
 						name="Sent"
 						type="monotoneX"
 						fill="hsl(var(--chart-5))"
 						fillOpacity={0.2}
 						stroke="hsl(var(--chart-5))"
-						// animationDuration={1200}
 						isAnimationActive={false}
 					/>
 					<Area
-						dataKey="stats.nr"
+						dataKey={dataKeys[1]}
 						name="Received"
 						type="monotoneX"
 						fill="hsl(var(--chart-2))"
 						fillOpacity={0.2}
 						stroke="hsl(var(--chart-2))"
-						// animationDuration={1200}
 						isAnimationActive={false}
 					/>
 				</AreaChart>

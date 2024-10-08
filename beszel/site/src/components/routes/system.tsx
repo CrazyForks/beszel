@@ -1,7 +1,15 @@
-import { $systems, pb, $chartTime, $containerFilter, $userSettings } from '@/lib/stores'
+import {
+	$systems,
+	pb,
+	$chartTime,
+	$containerFilter,
+	$userSettings,
+	$cpuMax,
+	$bandwidthMax,
+} from '@/lib/stores'
 import { ContainerStatsRecord, SystemRecord, SystemStatsRecord } from '@/types'
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card'
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Card, CardHeader, CardTitle, CardDescription } from '../ui/card'
 import { useStore } from '@nanostores/react'
 import Spinner from '../spinner'
 import { ClockArrowUp, CpuIcon, GlobeIcon, LayoutGridIcon, MonitorIcon, XIcon } from 'lucide-react'
@@ -12,8 +20,10 @@ import { scaleTime } from 'd3-scale'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
 import { Button, buttonVariants } from '../ui/button'
 import { Input } from '../ui/input'
-import { Rows, TuxIcon } from '../ui/icons'
+import { ChartAverage, ChartMax, Rows, TuxIcon } from '../ui/icons'
 import { useIntersectionObserver } from '@/lib/use-intersection-observer'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { WritableAtom } from 'nanostores'
 
 const CpuChart = lazy(() => import('../charts/cpu-chart'))
 const ContainerCpuChart = lazy(() => import('../charts/container-cpu-chart'))
@@ -29,11 +39,13 @@ const TemperatureChart = lazy(() => import('../charts/temperature-chart'))
 export default function SystemDetail({ name }: { name: string }) {
 	const systems = useStore($systems)
 	const chartTime = useStore($chartTime)
+	const cpuPeak = useStore($cpuMax)
 	const [grid, setGrid] = useLocalStorage('grid', true)
 	const [ticks, setTicks] = useState([] as number[])
 	const [system, setSystem] = useState({} as SystemRecord)
 	const [systemStats, setSystemStats] = useState([] as SystemStatsRecord[])
 	const netCardRef = useRef<HTMLDivElement>(null)
+	const [containerFilterBar, setContainerFilterBar] = useState(null as null | JSX.Element)
 	const [dockerCpuChartData, setDockerCpuChartData] = useState<Record<string, number | string>[]>(
 		[]
 	)
@@ -43,15 +55,18 @@ export default function SystemDetail({ name }: { name: string }) {
 	const [dockerNetChartData, setDockerNetChartData] = useState<Record<string, number | number[]>[]>(
 		[]
 	)
-	const hasDockerStats = dockerCpuChartData.length > 0
+
+	const showPeak = chartTime !== '1h'
 
 	useEffect(() => {
 		document.title = `${name} / Beszel`
 		return () => {
 			resetCharts()
 			$chartTime.set($userSettings.get().chartTime)
+			setContainerFilterBar(null)
 			$containerFilter.set('')
-			// setHasDocker(false)
+			$cpuMax.set(false)
+			$bandwidthMax.set(false)
 		}
 	}, [name])
 
@@ -133,11 +148,14 @@ export default function SystemDetail({ name }: { name: string }) {
 			getStats<ContainerStatsRecord>('container_stats'),
 		]).then(([systemStats, containerStats]) => {
 			const expectedInterval = chartTimeData[chartTime].expectedInterval
-			if (containerStats.status === 'fulfilled' && containerStats.value.length) {
-				makeContainerData(addEmptyValues(containerStats.value, expectedInterval))
-			}
 			if (systemStats.status === 'fulfilled') {
 				setSystemStats(addEmptyValues(systemStats.value, expectedInterval))
+			}
+			if (containerStats.status === 'fulfilled' && containerStats.value.length) {
+				!containerFilterBar && setContainerFilterBar(<ContainerFilterBar />)
+				makeContainerData(addEmptyValues(containerStats.value, expectedInterval))
+			} else {
+				setContainerFilterBar(null)
 			}
 		})
 	}, [system, chartTime])
@@ -239,7 +257,7 @@ export default function SystemDetail({ name }: { name: string }) {
 
 	return (
 		<>
-			<div id="chartwrap" className="grid gap-4 mb-10">
+			<div id="chartwrap" className="grid gap-4 mb-10 overflow-x-clip">
 				{/* system info */}
 				<Card>
 					<div className="grid lg:flex items-center gap-4 px-4 sm:px-6 pt-3 sm:pt-4 pb-5">
@@ -324,17 +342,20 @@ export default function SystemDetail({ name }: { name: string }) {
 					<ChartCard
 						grid={grid}
 						title="Total CPU Usage"
-						description="Average system-wide CPU utilization"
+						cornerEl={showPeak ? <SelectAvgMax store={$cpuMax} /> : null}
+						description={`${
+							cpuPeak && showPeak ? 'Max (1m) ' : 'Average'
+						} system-wide CPU utilization`}
 					>
 						<CpuChart ticks={ticks} systemData={systemStats} />
 					</ChartCard>
 
-					{hasDockerStats && (
+					{containerFilterBar && (
 						<ChartCard
 							grid={grid}
 							title="Docker CPU Usage"
 							description="CPU utilization of docker containers"
-							isContainerChart={true}
+							cornerEl={containerFilterBar}
 						>
 							<ContainerCpuChart chartData={dockerCpuChartData} ticks={ticks} />
 						</ChartCard>
@@ -348,12 +369,12 @@ export default function SystemDetail({ name }: { name: string }) {
 						<MemChart ticks={ticks} systemData={systemStats} />
 					</ChartCard>
 
-					{hasDockerStats && (
+					{containerFilterBar && (
 						<ChartCard
 							grid={grid}
 							title="Docker Memory Usage"
 							description="Memory usage of docker containers"
-							isContainerChart={true}
+							cornerEl={containerFilterBar}
 						>
 							<ContainerMemChart chartData={dockerMemChartData} ticks={ticks} />
 						</ChartCard>
@@ -379,12 +400,13 @@ export default function SystemDetail({ name }: { name: string }) {
 					<ChartCard
 						grid={grid}
 						title="Bandwidth"
+						cornerEl={showPeak ? <SelectAvgMax store={$bandwidthMax} /> : null}
 						description="Network traffic of public interfaces"
 					>
 						<BandwidthChart ticks={ticks} systemData={systemStats} />
 					</ChartCard>
 
-					{hasDockerStats && dockerNetChartData.length > 0 && (
+					{containerFilterBar && dockerNetChartData.length > 0 && (
 						<div
 							ref={netCardRef}
 							className={cn({
@@ -394,7 +416,7 @@ export default function SystemDetail({ name }: { name: string }) {
 							<ChartCard
 								title="Docker Network I/O"
 								description="Includes traffic between internal services"
-								isContainerChart={true}
+								cornerEl={containerFilterBar}
 							>
 								<ContainerNetChart chartData={dockerNetChartData} ticks={ticks} />
 							</ChartCard>
@@ -461,10 +483,10 @@ function ContainerFilterBar() {
 
 	const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
 		$containerFilter.set(e.target.value)
-	}, []) // Use an empty dependency array to prevent re-creation
+	}, [])
 
 	return (
-		<div className="relative py-1 block sm:w-44 sm:absolute sm:top-2.5 sm:right-3.5">
+		<>
 			<Input
 				placeholder="Filter..."
 				className="pl-4 pr-8"
@@ -483,7 +505,29 @@ function ContainerFilterBar() {
 					<XIcon className="h-4 w-4" />
 				</Button>
 			)}
-		</div>
+		</>
+	)
+}
+
+function SelectAvgMax({ store }: { store: WritableAtom<boolean> }) {
+	const max = useStore(store)
+	const Icon = max ? ChartMax : ChartAverage
+
+	return (
+		<Select value={max ? 'max' : 'avg'} onValueChange={(e) => store.set(e === 'max')}>
+			<SelectTrigger className="relative pl-10 pr-5">
+				<Icon className="h-4 w-4 absolute left-4 top-1/2 -translate-y-1/2 opacity-85" />
+				<SelectValue />
+			</SelectTrigger>
+			<SelectContent>
+				<SelectItem key="avg" value="avg">
+					Average
+				</SelectItem>
+				<SelectItem key="max" value="max">
+					Max (1m)
+				</SelectItem>
+			</SelectContent>
+		</Select>
 	)
 }
 
@@ -492,13 +536,13 @@ function ChartCard({
 	description,
 	children,
 	grid,
-	isContainerChart,
+	cornerEl,
 }: {
 	title: string
 	description: string
 	children: React.ReactNode
 	grid?: boolean
-	isContainerChart?: boolean
+	cornerEl?: JSX.Element | null
 }) {
 	const { isIntersecting, ref } = useIntersectionObserver()
 
@@ -510,12 +554,16 @@ function ChartCard({
 			<CardHeader className="pb-5 pt-4 relative space-y-1 max-sm:py-3 max-sm:px-4">
 				<CardTitle className="text-xl sm:text-2xl">{title}</CardTitle>
 				<CardDescription>{description}</CardDescription>
-				{isContainerChart && <ContainerFilterBar />}
+				{cornerEl && (
+					<div className="relative py-1 block sm:w-44 sm:absolute sm:top-2.5 sm:right-3.5">
+						{cornerEl}
+					</div>
+				)}
 			</CardHeader>
-			<CardContent className="pl-0 w-[calc(100%-1.6em)] h-52 relative">
+			<div className="pl-0 w-[calc(100%-1.6em)] h-52 relative">
 				{<Spinner />}
 				{isIntersecting && <Suspense>{children}</Suspense>}
-			</CardContent>
+			</div>
 		</Card>
 	)
 }

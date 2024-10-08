@@ -8,6 +8,7 @@ import {
 	formatShortDate,
 	toFixedWithoutTrailingZeros,
 	twoDecimalString,
+	chartMargin,
 } from '@/lib/utils'
 // import Spinner from '../spinner'
 import { useStore } from '@nanostores/react'
@@ -30,21 +31,11 @@ export default function DiskIoChart({
 		<div>
 			{/* {!yAxisSet && <Spinner />} */}
 			<ChartContainer
-				config={{}}
 				className={cn('h-full w-full absolute aspect-auto bg-card opacity-0 transition-opacity', {
 					'opacity-100': yAxisWidth,
 				})}
 			>
-				<AreaChart
-					accessibilityLayer
-					data={systemData}
-					margin={{
-						left: 0,
-						right: 0,
-						top: 10,
-						bottom: 0,
-					}}
-				>
+				<AreaChart accessibilityLayer data={systemData} margin={chartMargin}>
 					<CartesianGrid vertical={false} />
 					<YAxis
 						className="tracking-tighter"

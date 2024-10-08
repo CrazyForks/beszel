@@ -13,6 +13,7 @@ import {
 	formatShortDate,
 	toFixedWithoutTrailingZeros,
 	twoDecimalString,
+	chartMargin,
 } from '@/lib/utils'
 // import Spinner from '../spinner'
 import { useStore } from '@nanostores/react'
@@ -72,7 +73,6 @@ export default function ContainerCpuChart({
 		<div>
 			{/* {!yAxisSet && <Spinner />} */}
 			<ChartContainer
-				config={{}}
 				className={cn('h-full w-full absolute aspect-auto bg-card opacity-0 transition-opacity', {
 					'opacity-100': yAxisWidth,
 				})}
@@ -80,9 +80,7 @@ export default function ContainerCpuChart({
 				<AreaChart
 					accessibilityLayer
 					data={chartData}
-					margin={{
-						top: 10,
-					}}
+					margin={chartMargin}
 					reverseStackOrder={true}
 				>
 					<CartesianGrid vertical={false} />
