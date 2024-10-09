@@ -39,3 +39,10 @@ export const $containerFilter = atom('')
 
 /** Fallback copy to clipboard dialog content */
 export const $copyContent = atom('')
+
+/** Max CPU toggle value */
+export const $cpuMax = atom(false)
+/** Max bandwidth toggle value */
+export const $bandwidthMax = atom(false)
+/** Max disk toggle value */
+export const $diskIoMax = atom(false)
